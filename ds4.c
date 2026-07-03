@@ -38867,6 +38867,31 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
                             "expert-cache hit rate will be catastrophic\n",
                             boosted, routed);
                 }
+                /*
+                 * Below one token's routed working set (uniform routed layers
+                 * x experts used) every token evicts entries it is about to
+                 * reuse, and prefill serves layer overflow through mapped
+                 * model views.  Output stays byte-identical at any budget
+                 * (the addr-table kernels read the same bytes either way);
+                 * only throughput collapses, so warn instead of refusing.
+                 */
+                const uint64_t min_experts =
+                    (uint64_t)(routed - boosted) * DS4_N_EXPERT_USED;
+                if (min_experts != 0 &&
+                    e->ssd_streaming_cache_experts != 0 &&
+                    e->ssd_streaming_cache_experts < 2u * min_experts) {
+                    fprintf(stderr,
+                            "ds4: WARNING: SSD streaming expert cache (%u experts) is "
+                            "under twice the per-token routed working set (%u layers "
+                            "x %u experts = %llu); expect heavy thrashing below "
+                            "%.2f GiB\n",
+                            e->ssd_streaming_cache_experts,
+                            routed - boosted,
+                            DS4_N_EXPERT_USED,
+                            (unsigned long long)min_experts,
+                            (double)(2u * min_experts * slab_expert_bytes) /
+                                1073741824.0);
+                }
             }
         }
         (void)ds4_gpu_set_model_fd(e->model.fd);
