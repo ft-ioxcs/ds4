@@ -1276,6 +1276,10 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
     int splitpos = 0;
     int inline_leaf = 0;
     size_t i = raxLowWalk(rax,s,len,&h,&parentlink,&splitpos,&ts,&inline_leaf);
+    if (ts.oom) {
+        raxStackFree(&ts);
+        return 0;
+    }
     int trycompress = 0; /* Will be set to 1 if we should try to optimize the
                             tree resulting from the deletion. */
 
